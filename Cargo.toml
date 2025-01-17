@@ -1,0 +1,25 @@
+[package]
+name = "scylla-migrate"
+version = "0.1.0"
+edition = "2021"
+description = "A migration tool for ScyllaDB"
+license = "MIT"
+repository = "https://github.com/jimmielovell/scylla-migrate"
+
+[[bin]]
+name = "scylla-migrate"
+path = "src/bin/main.rs"
+
+[lib]
+name = "scylla_migrate"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1.0.95"
+clap = { version = "4.5.26", features = ["derive"] }
+scylla = { version = "0.15.1", features = ["time-03", "num-bigint-03"]}
+time = { version = "0.3", features = ["formatting"] }
+tokio = { version = "1.43.0", features = ["fs", "macros", "rt-multi-thread"] }
+
+[dev-dependencies]
+tempfile = "3.15.0"
