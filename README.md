@@ -1,6 +1,6 @@
 # scylla-migrate
 
-A Rust library and CLI tool for managing ScyllaDB migrations. This project provides both a programmatic API for managing migrations in your Rust applications and a command-line interface for manual migration management.
+A Rust library and CLI tool for managing ScyllaDB migrations. It provides both a programmatic API for managing migrations in your Rust applications and a command-line interface for manual migration management.
 
 ## Features
 
@@ -34,8 +34,11 @@ scylla-migrate = "0.1.0"
 #### Creating a New Migration
 
 ```bash
+# Install the scylla-migrate bin
+cargo install scylla-migrate
+
 # Create a migration in the default directory (./migrations)
-cargo scylla-migrate add create_users
+scylla-migrate add create_users
 
 # Create a migration in a custom directory
 cargo scylla-migrate add create_users --path ./my-migrations
@@ -54,13 +57,13 @@ This will create a new file with a name like `20240117000000_create_users.cql` c
 
 ```bash
 # Run migrations from default directory
-cargo scylla-migrate run --uri "scylla://localhost:9042"
+scylla-migrate run --uri "scylla://localhost:9042"
 
 # Run migrations from custom directory
-cargo scylla-migrate run --path ./my-migrations --uri "scylla://localhost:9042"
+scylla-migrate run --path ./my-migrations --uri "scylla://localhost:9042"
 
 # Run migrations with authentication
-cargo scylla-migrate run \
+scylla-migrate run \
     --uri "scylla://localhost:9042" \
     --user myuser \
     --password mypassword
@@ -70,7 +73,7 @@ cargo scylla-migrate run \
 
 ```rust
 use scylla::SessionBuilder;
-use scylla_migrate::MigrationRunner;
+use scylla_migrate::Migrator;
 
 async fn migrate_database() -> Result<(), Box<dyn std::error::Error>> {
     // Create ScyllaDB session
@@ -81,7 +84,7 @@ async fn migrate_database() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     // Create and run the migration runner
-    let runner = MigrationRunner::new(&session, "migrations");
+    let runner = Migrator::new(&session, "migrations");
     runner.run().await?;
 
     Ok(())
@@ -117,34 +120,14 @@ Migrations are tracked in a `public.migrations` table in your ScyllaDB instance.
 
 ```sql
 CREATE TABLE public.migrations (
-    migration_id text PRIMARY KEY,
-    applied_at timestamp,
-    description text
+    version text PRIMARY KEY,
+    checksum blob,
+    description text,
+    applied_at timestamp
 );
 ```
 
-Each migration is run exactly once, and subsequent runs will skip already-applied migrations.
-
-## Command Line Options
-
-### Add Command
-```bash
-cargo scylla-migrate add <name> [OPTIONS]
-
-OPTIONS:
-    -p, --path <path>    Custom directory for migrations
-```
-
-### Run Command
-```bash
-cargo scylla-migrate run [OPTIONS]
-
-OPTIONS:
-    -p, --path <path>          Custom directory for migrations
-    -u, --uri <uri>            ScyllaDB connection string
-    -u, --user <username>      ScyllaDB username (optional)
-    -p, --password <password>  ScyllaDB password (optional)
-```
+Each migration is run exactly once, and subsequent runs will skip already-applied migrations unless they have been modified, i.e. they have a different checksum.
 
 ## Contributing
 
@@ -154,19 +137,10 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## Development
-
-### Building from Source
-
-```bash
-git clone https://github.com/jimmielovell/scylla-migrate
-cd scylla-migrate
-cargo build
-```
-
 ## Known Limitations
 
 - No support for migration rollbacks
+- No support for dry-runs
 
 ## Roadmap
 

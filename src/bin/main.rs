@@ -1,28 +1,16 @@
-use anyhow::Result;
-use clap::{Parser, Subcommand};
-use std::fs;
-use std::path::PathBuf;
+use anyhow::{Context, Result};
+use clap::Parser;
 use scylla::SessionBuilder;
+use scylla_migrate::Migrator;
+use std::fs;
+use std::path::{Path, PathBuf};
 use time::OffsetDateTime;
-use scylla_migrate::MigrationRunner;
 
-#[derive(Parser)]
-#[command(name = "cargo")]
-#[command(bin_name = "cargo")]
-pub enum Cargo {
-    #[command(name = "scylla-migrate")]
-    ScyllaMigrate(ScyllaMigrateArgs),
-}
-
-#[derive(clap::Args)]
-#[command(author, version, about)]
-pub struct ScyllaMigrateArgs {
-    #[command(subcommand)]
-    command: Commands,
-}
-
-#[derive(Subcommand)]
-pub enum Commands {
+// cargo invokes this binary as `scylla-migrate <args>`
+#[derive(Debug, Parser)]
+#[command(bin_name = "scylla-migrate")]
+#[command(version, about, long_about = None)]
+enum Args {
     /// Add a new migration
     Add {
         /// Name of the migration
@@ -50,17 +38,21 @@ pub enum Commands {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let Cargo::ScyllaMigrate(args) = Cargo::parse();
+    let args = Args::parse();
 
-    match args.command {
-        Commands::Add { name, path } => {
+    match args {
+        Args::Add { name, path } => {
             let migrations_path = path.unwrap_or_else(|| PathBuf::from("migrations"));
             create_migration(&migrations_path, &name)?;
         }
-        Commands::Run { path, uri, user, password } => {
+        Args::Run {
+            path,
+            uri,
+            user,
+            password,
+        } => {
             let migrations_path = path.unwrap_or_else(|| PathBuf::from("migrations"));
             run_migrations(&uri, &migrations_path, user, password).await?;
-            println!("Running migrations from {:?} using {}", migrations_path, uri);
         }
     }
 
@@ -68,9 +60,9 @@ async fn main() -> Result<()> {
 }
 
 fn create_migration(migrations_path: &PathBuf, name: &str) -> Result<()> {
-    fs::create_dir_all(migrations_path)?;
+    fs::create_dir_all(migrations_path).context("Unable to create migrations directory")?;
 
-    let timestamp = OffsetDateTime::now_utc()
+    let dt = OffsetDateTime::now_utc()
         .format(&time::format_description::well_known::Rfc3339)?
         .replace([':', '-', '.'], "")
         .split('T')
@@ -78,23 +70,23 @@ fn create_migration(migrations_path: &PathBuf, name: &str) -> Result<()> {
         .unwrap()
         .to_string();
 
-    let filename = format!("{}_{}.cql", timestamp, name);
+    let filename = format!("{}_{}.cql", dt, name);
     let filepath = migrations_path.join(filename);
 
     let content = format!(
         "-- Migration: {}\n-- Timestamp: {}\n\n-- Add your CQL queries here\n",
-        name, timestamp
+        name, dt
     );
 
     fs::write(&filepath, content)?;
-    println!("Created migration file: {:?}", filepath);
+    println!("Created migration: {:?}", filepath);
 
     Ok(())
 }
 
 async fn run_migrations(
     node: &String,
-    migrations_path: &PathBuf,
+    migrations_path: &Path,
     user: Option<String>,
     password: Option<String>,
 ) -> Result<()> {
@@ -107,7 +99,7 @@ async fn run_migrations(
     let session = builder.build().await?;
 
     // Migrate the scylla database
-    let runner = MigrationRunner::new(&session, migrations_path.to_str().unwrap());
+    let runner = Migrator::new(&session, migrations_path.to_str().unwrap());
     runner.run().await?;
 
     Ok(())
