@@ -34,14 +34,11 @@ scylla-migrate = "0.1.0"
 #### Creating a New Migration
 
 ```bash
-# Install the scylla-migrate bin
-cargo install scylla-migrate
-
 # Create a migration in the default directory (./migrations)
 scylla-migrate add create_users
 
 # Create a migration in a custom directory
-cargo scylla-migrate add create_users --path ./my-migrations
+scylla-migrate add create_users --path ./my-migrations
 ```
 
 This will create a new file with a name like `20240117000000_create_users.cql` containing:
